@@ -1,6 +1,9 @@
 var express = require('express')
 var app = express()
 const ytdl = require('ytdl-core')
+var MapCache = require('map-cache')
+var cache = new MapCache()
+
 const { base58_to_binary } = require('base58-js')
 const { binary_to_base58 } = require('base58-js')
 const { json } = require('express/lib/response')
@@ -13,18 +16,25 @@ app.get('/conv',function(req,res){
 
     //---Parameter link
     let link = new TextDecoder().decode(base58_to_binary(req.query.link))
-
+    let origLink = req.query.link
     //---get header range
     let range = req.headers.range
     console.log("Header_range:"+range)
 
-    streamLink(link,res,range)
+    if(!cache.has(origLink)){
+        streamLink(link,origLink,res,range)
+    }else{
+        res.end(cache.get(origLink))
+        cache.del(origLink)
+        console.log("Sending from from cache")
+    }
+    
 
 })
 
 var server = app.listen(PORT,function(){ })
 
-function streamLink(link,res,range){
+function streamLink(link,origLink,res,range){
 
     let myPromise = ytdl.getInfo(link)
 
@@ -48,6 +58,7 @@ function streamLink(link,res,range){
                 let newLink = minFormat.url
                 let linkBase58 = binary_to_base58(new TextEncoder().encode(newLink))
                 console.log(linkBase58)
+                cache.set(origLink,linkBase58)
                 res.end(linkBase58)
 
 
